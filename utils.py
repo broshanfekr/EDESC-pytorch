@@ -9,6 +9,8 @@ from sklearn.metrics import adjusted_rand_score as ari_score
 import h5py
 import scipy.io
 from sklearn import preprocessing
+from sklearn.metrics.cluster import _supervised
+from scipy.optimize import linear_sum_assignment
 
 def load_reuters(data_path='./data/reuters'):
     import os
@@ -48,7 +50,7 @@ class LoadDataset(Dataset):
 #######################################################
 
 
-def cluster_acc(y_true, y_pred):
+def cluster_acc(labels_true, labels_pred):
     """
     Calculate clustering accuracy. Require scikit-learn installed
 
@@ -59,12 +61,8 @@ def cluster_acc(y_true, y_pred):
     # Return
         accuracy, in [0,1]
     """
-    y_true = y_true.astype(np.int64)
-    assert y_pred.size == y_true.size
-    D = max(y_pred.max(), y_true.max()) + 1
-    w = np.zeros((D, D), dtype=np.int64)
-    for i in range(y_pred.size):
-        w[y_pred[i], y_true[i]] += 1
-    from sklearn.utils.linear_assignment_ import linear_assignment
-    ind = linear_assignment(w.max() - w)
-    return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
+    labels_true, labels_pred = _supervised.check_clusterings(labels_true, labels_pred)
+    # value = _supervised.contingency_matrix(labels_true, labels_pred, sparse=False)
+    value = _supervised.contingency_matrix(labels_true, labels_pred)
+    [r, c] = linear_sum_assignment(-value)
+    return value[r, c].sum() / len(labels_true)
