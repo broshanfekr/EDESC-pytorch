@@ -20,6 +20,7 @@ from AutoEncoder import AE
 from InitializeD import Initialization_D
 from Constraint import D_constraint1, D_constraint2
 import time
+
 warnings.filterwarnings("ignore")
 
    
@@ -55,12 +56,15 @@ class EDESC(nn.Module):
         self.D = Parameter(torch.Tensor(n_z, n_clusters))
 
         
-    def pretrain(self, path=''):
-        if path == '':
-            pretrain_ae(self.ae)
-        # Load pre-trained weights
-        self.ae.load_state_dict(torch.load(self.pretrain_path, map_location='cpu'))
-        print('Load pre-trained model from', path)
+    def pretrain(self, path='', train_epoch=50):
+        if not os.path.isfile(path):
+        # if path == '':
+            print("train the auto encoder")
+            pretrain_ae(self.ae, train_epoch=train_epoch)
+        else:
+            # Load pre-trained weights
+            self.ae.load_state_dict(torch.load(self.pretrain_path, map_location='cpu'))
+            print('Load pre-trained model from', path)
 
     def forward(self, x):
         
@@ -105,12 +109,12 @@ def refined_subspace_affinity(s):
     weight = s**2 / s.sum(0)
     return (weight.t() / weight.sum(1)).t()
 
-def pretrain_ae(model):
+def pretrain_ae(model, train_epoch):
 
     train_loader = DataLoader(dataset, batch_size=512, shuffle=True)
     print(model)
     optimizer = Adam(model.parameters(), lr=args.lr)
-    for epoch in range(50):
+    for epoch in range(train_epoch):
         total_loss = 0.
         for batch_idx, (x, _, _) in enumerate(train_loader):
             x = x.to(device)
@@ -126,7 +130,7 @@ def pretrain_ae(model):
         torch.save(model.state_dict(), args.pretrain_path)
     print("Model saved to {}.".format(args.pretrain_path))
     
-def train_EDESC():
+def train_EDESC(pretrain_path):
 
     model = EDESC(
         n_enc_1=500,
@@ -139,11 +143,12 @@ def train_EDESC():
         n_z=args.n_z,
         n_clusters=args.n_clusters,
         num_sample = args.num_sample,
-        pretrain_path=args.pretrain_path).to(device)
+        pretrain_path=args.pretrain_path
+        ).to(device)
     start = time.time()      
 
     # Load pre-trained model
-    model.pretrain('reuters.pkl')
+    model.pretrain(pretrain_path, train_epoch=args.ae_train_epoch)
     optimizer = Adam(model.parameters(), lr=args.lr)
     
     # Cluster parameter initiate
@@ -217,26 +222,48 @@ if __name__ == "__main__":
     parser.add_argument('--d', default=5, type=int)
     parser.add_argument('--n_z', default=20, type=int)
     parser.add_argument('--eta', default=5, type=int)
-    #parser.add_argument('--batch_size', default=512, type=int)    
+    #parser.add_argument('--batch_size', default=512, type=int)
+
     parser.add_argument('--dataset', type=str, default='reuters')
-    parser.add_argument('--pretrain_path', type=str, default='data/reuters')
+    # parser.add_argument('--dataset', type=str, default='cifar10')
+
+    parser.add_argument("--ae_train_epoch", type=int, default=100)
+
+    # parser.add_argument('--pretrain_path', type=str, default='data/reuters')
     parser.add_argument('--beta', default=0.1, type=float, help='coefficient of subspace affinity loss')
     args = parser.parse_args()
     args.cuda = torch.cuda.is_available()
     print("use cuda: {}".format(args.cuda))
     device = torch.device("cuda" if args.cuda else "cpu")
-    args.dataset = 'reuters'
+    # args.dataset = 'reuters'
     if args.dataset == 'reuters':
         args.pretrain_path = 'data/reuters.pkl'
         args.n_clusters = 4
         args.n_input = 2000
         args.num_sample = 10000
-        dataset = LoadDataset(args.dataset)   
+        dataset = LoadDataset(args.dataset)
+    elif args.dataset == "cifar10":
+        path = "../data/cifar10/test"
+        datafile = "cifar10_test.pckl"
+        file_path = os.path.join(path, datafile)
+        args.pretrain_path = 'data/cifar10.pkl'
+        args.n_clusters = 10
+        args.n_input = 768
+        args.num_sample = 10000
+        dataset = LoadDataset(args.dataset, data_path=file_path)
+        
+        # imgs, labels, X = load_var(file_path)
+        # cluster_num = len(np.unique(labels))
+        # labels = np.asarray(labels)
+        
+
+
+
     print(args)
     bestacc = 0 
     bestnmi = 0
     for i in range(10):
-        acc, nmi = train_EDESC()
+        acc, nmi = train_EDESC(args.pretrain_path)
         if acc > bestacc:
             bestacc = acc
         if nmi > bestnmi:

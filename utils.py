@@ -11,6 +11,22 @@ import scipy.io
 from sklearn import preprocessing
 from sklearn.metrics.cluster import _supervised
 from scipy.optimize import linear_sum_assignment
+import pickle
+
+
+def load_var(load_path):
+    file = open(load_path, 'rb')
+    variable = pickle.load(file)
+    file.close()
+    return variable
+
+
+def save_var(save_path, variable):
+    file = open(save_path, 'wb')
+    pickle.dump(variable, file)
+    print("variable saved.")
+    file.close()
+
 
 def load_reuters(data_path='./data/reuters'):
     import os
@@ -26,16 +42,31 @@ def load_reuters(data_path='./data/reuters'):
     y = y.reshape((y.size,))
     print(('REUTERSIDF10K samples', x.shape))
     return x, y
+
+
+def load_cifar10_clip(data_path):
+    imgs, labels, X = load_var(data_path)
+    cluster_num = len(np.unique(labels))
+    labels = np.asarray(labels)
+
+    x = X.reshape((X.shape[0], -1)).astype('float32')
+    y = labels.reshape((labels.size,))
+
+    return x, y
+
+
     
-def LoadDatasetByName(dataset_name):
+def LoadDatasetByName(dataset_name, data_path):
     if dataset_name == 'reuters':
         x, y = load_reuters()
+    elif dataset_name == "cifar10":
+        x, y = load_cifar10_clip(data_path)
     return x, y
 
 class LoadDataset(Dataset):
 
-    def __init__(self, dataset_name):
-        self.x, self.y = LoadDatasetByName(dataset_name)
+    def __init__(self, dataset_name, data_path=None):
+        self.x, self.y = LoadDatasetByName(dataset_name, data_path)
 
     def __len__(self):
         return self.x.shape[0]
